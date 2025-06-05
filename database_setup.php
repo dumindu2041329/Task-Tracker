@@ -3,13 +3,6 @@
  * Database Setup and Testing Script
  */
 
-// Set up environment variables for MySQL
-$_ENV['DB_HOST'] = 'localhost';
-$_ENV['DB_PORT'] = '3306';
-$_ENV['DB_NAME'] = 'task_tracker';
-$_ENV['DB_USER'] = 'root';
-$_ENV['DB_PASSWORD'] = '';
-
 require_once 'config/database.php';
 require_once 'includes/database_functions.php';
 

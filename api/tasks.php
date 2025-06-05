@@ -12,26 +12,21 @@ $method = $_SERVER['REQUEST_METHOD'];
 $input = json_decode(file_get_contents('php://input'), true);
 
 try {
-    // Check if database is available and use it, otherwise fallback to JSON
-    $useDatabase = isDatabaseAvailable();
-    
-    if ($useDatabase) {
-        initializeDatabase();
-        migrateJsonToDatabase();
-    }
+    // Use MySQL database exclusively
+    initializeDatabase();
     
     switch ($method) {
         case 'GET':
-            handleGetTasks($useDatabase);
+            handleGetTasksDb();
             break;
         case 'POST':
-            handleCreateTask($input, $useDatabase);
+            handleCreateTaskDb($input);
             break;
         case 'PUT':
-            handleUpdateTask($input, $useDatabase);
+            handleUpdateTaskDb($input);
             break;
         case 'DELETE':
-            handleDeleteTask($input, $useDatabase);
+            handleDeleteTaskDb($input);
             break;
         default:
             http_response_code(405);
@@ -43,12 +38,8 @@ try {
     echo json_encode(['error' => 'Internal server error: ' . $e->getMessage()]);
 }
 
-function handleGetTasks($useDatabase = false) {
-    if ($useDatabase) {
-        $tasks = loadTasksFromDb();
-    } else {
-        $tasks = loadTasks();
-    }
+function handleGetTasksDb() {
+    $tasks = loadTasksFromDb();
     
     // Sort tasks by creation date (newest first) by default
     usort($tasks, function($a, $b) {
@@ -59,211 +50,110 @@ function handleGetTasks($useDatabase = false) {
         'success' => true,
         'tasks' => $tasks,
         'count' => count($tasks),
-        'storage' => $useDatabase ? 'database' : 'json'
+        'storage' => 'database'
     ]);
 }
 
-function handleCreateTask($input, $useDatabase = false) {
+function handleCreateTaskDb($input) {
     if (empty($input['title'])) {
         http_response_code(400);
         echo json_encode(['error' => 'Task title is required']);
         return;
     }
     
-    if ($useDatabase) {
-        $taskData = [
-            'title' => sanitizeInput($input['title']),
-            'description' => sanitizeInput($input['description'] ?? ''),
-            'dueDate' => $input['dueDate'] ?? null,
-            'completed' => false
-        ];
-        
-        $newTask = saveTaskToDb($taskData);
-        
-        if ($newTask) {
-            echo json_encode([
-                'success' => true,
-                'message' => 'Task created successfully',
-                'task' => $newTask,
-                'storage' => 'database'
-            ]);
-        } else {
-            http_response_code(500);
-            echo json_encode(['error' => 'Failed to save task']);
-        }
+    $taskData = [
+        'title' => sanitizeInput($input['title']),
+        'description' => sanitizeInput($input['description'] ?? ''),
+        'dueDate' => $input['dueDate'] ?? null,
+        'completed' => false
+    ];
+    
+    $newTask = saveTaskToDb($taskData);
+    
+    if ($newTask) {
+        echo json_encode([
+            'success' => true,
+            'message' => 'Task created successfully',
+            'task' => $newTask,
+            'storage' => 'database'
+        ]);
     } else {
-        $tasks = loadTasks();
-        
-        $newTask = [
-            'id' => generateId(),
-            'title' => sanitizeInput($input['title']),
-            'description' => sanitizeInput($input['description'] ?? ''),
-            'dueDate' => $input['dueDate'] ?? null,
-            'completed' => false,
-            'created' => date('Y-m-d H:i:s'),
-            'updated' => date('Y-m-d H:i:s')
-        ];
-        
-        $tasks[] = $newTask;
-        
-        if (saveTasks($tasks)) {
-            echo json_encode([
-                'success' => true,
-                'message' => 'Task created successfully',
-                'task' => $newTask,
-                'storage' => 'json'
-            ]);
-        } else {
-            http_response_code(500);
-            echo json_encode(['error' => 'Failed to save task']);
-        }
+        http_response_code(500);
+        echo json_encode(['error' => 'Failed to save task']);
     }
 }
 
-function handleUpdateTask($input, $useDatabase = false) {
+function handleUpdateTaskDb($input) {
     if (empty($input['id'])) {
         http_response_code(400);
         echo json_encode(['error' => 'Task ID is required']);
         return;
     }
     
-    if ($useDatabase) {
-        $updates = [];
-        
-        if (isset($input['title'])) {
-            if (empty($input['title'])) {
-                http_response_code(400);
-                echo json_encode(['error' => 'Task title cannot be empty']);
-                return;
-            }
-            $updates['title'] = sanitizeInput($input['title']);
-        }
-        
-        if (isset($input['description'])) {
-            $updates['description'] = sanitizeInput($input['description']);
-        }
-        
-        if (isset($input['dueDate'])) {
-            $updates['dueDate'] = $input['dueDate'];
-        }
-        
-        if (isset($input['completed'])) {
-            $updates['completed'] = (bool)$input['completed'];
-        }
-        
-        $updatedTask = updateTaskInDb($input['id'], $updates);
-        
-        if ($updatedTask) {
-            echo json_encode([
-                'success' => true,
-                'message' => 'Task updated successfully',
-                'task' => $updatedTask,
-                'storage' => 'database'
-            ]);
-        } else {
-            http_response_code(404);
-            echo json_encode(['error' => 'Task not found or update failed']);
-        }
-    } else {
-        $tasks = loadTasks();
-        $taskIndex = findTaskIndex($tasks, $input['id']);
-        
-        if ($taskIndex === false) {
-            http_response_code(404);
-            echo json_encode(['error' => 'Task not found']);
+    $updates = [];
+    
+    if (isset($input['title'])) {
+        if (empty($input['title'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Task title cannot be empty']);
             return;
         }
-        
-        // Update task fields
-        if (isset($input['title'])) {
-            if (empty($input['title'])) {
-                http_response_code(400);
-                echo json_encode(['error' => 'Task title cannot be empty']);
-                return;
-            }
-            $tasks[$taskIndex]['title'] = sanitizeInput($input['title']);
-        }
-        
-        if (isset($input['description'])) {
-            $tasks[$taskIndex]['description'] = sanitizeInput($input['description']);
-        }
-        
-        if (isset($input['dueDate'])) {
-            $tasks[$taskIndex]['dueDate'] = $input['dueDate'];
-        }
-        
-        if (isset($input['completed'])) {
-            $tasks[$taskIndex]['completed'] = (bool)$input['completed'];
-        }
-        
-        $tasks[$taskIndex]['updated'] = date('Y-m-d H:i:s');
-        
-        if (saveTasks($tasks)) {
-            echo json_encode([
-                'success' => true,
-                'message' => 'Task updated successfully',
-                'task' => $tasks[$taskIndex],
-                'storage' => 'json'
-            ]);
-        } else {
-            http_response_code(500);
-            echo json_encode(['error' => 'Failed to update task']);
-        }
+        $updates['title'] = sanitizeInput($input['title']);
+    }
+    
+    if (isset($input['description'])) {
+        $updates['description'] = sanitizeInput($input['description']);
+    }
+    
+    if (isset($input['dueDate'])) {
+        $updates['dueDate'] = $input['dueDate'];
+    }
+    
+    if (isset($input['completed'])) {
+        $updates['completed'] = (bool)$input['completed'];
+    }
+    
+    $updatedTask = updateTaskInDb($input['id'], $updates);
+    
+    if ($updatedTask) {
+        echo json_encode([
+            'success' => true,
+            'message' => 'Task updated successfully',
+            'task' => $updatedTask,
+            'storage' => 'database'
+        ]);
+    } else {
+        http_response_code(404);
+        echo json_encode(['error' => 'Task not found or update failed']);
     }
 }
 
-function handleDeleteTask($input, $useDatabase = false) {
+function handleDeleteTaskDb($input) {
     if (empty($input['id'])) {
         http_response_code(400);
         echo json_encode(['error' => 'Task ID is required']);
         return;
     }
     
-    if ($useDatabase) {
-        // Get task before deletion for response
-        $task = getTaskFromDb($input['id']);
-        
-        if (!$task) {
-            http_response_code(404);
-            echo json_encode(['error' => 'Task not found']);
-            return;
-        }
-        
-        if (deleteTaskFromDb($input['id'])) {
-            echo json_encode([
-                'success' => true,
-                'message' => 'Task deleted successfully',
-                'task' => $task,
-                'storage' => 'database'
-            ]);
-        } else {
-            http_response_code(500);
-            echo json_encode(['error' => 'Failed to delete task']);
-        }
+    // Get task before deletion for response
+    $task = getTaskFromDb($input['id']);
+    
+    if (!$task) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Task not found']);
+        return;
+    }
+    
+    if (deleteTaskFromDb($input['id'])) {
+        echo json_encode([
+            'success' => true,
+            'message' => 'Task deleted successfully',
+            'task' => $task,
+            'storage' => 'database'
+        ]);
     } else {
-        $tasks = loadTasks();
-        $taskIndex = findTaskIndex($tasks, $input['id']);
-        
-        if ($taskIndex === false) {
-            http_response_code(404);
-            echo json_encode(['error' => 'Task not found']);
-            return;
-        }
-        
-        $deletedTask = $tasks[$taskIndex];
-        array_splice($tasks, $taskIndex, 1);
-        
-        if (saveTasks($tasks)) {
-            echo json_encode([
-                'success' => true,
-                'message' => 'Task deleted successfully',
-                'task' => $deletedTask,
-                'storage' => 'json'
-            ]);
-        } else {
-            http_response_code(500);
-            echo json_encode(['error' => 'Failed to delete task']);
-        }
+        http_response_code(500);
+        echo json_encode(['error' => 'Failed to delete task']);
     }
 }
 
@@ -293,12 +183,5 @@ function getTaskFromDb($id) {
     }
 }
 
-function findTaskIndex($tasks, $id) {
-    foreach ($tasks as $index => $task) {
-        if ($task['id'] === $id) {
-            return $index;
-        }
-    }
-    return false;
-}
+
 ?>

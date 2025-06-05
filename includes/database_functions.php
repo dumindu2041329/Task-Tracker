@@ -213,6 +213,9 @@ function getTaskStatsFromDb() {
  */
 function migrateJsonToDatabase() {
     try {
+        // Include functions.php for loadTasks function
+        require_once __DIR__ . '/functions.php';
+        
         // Check if database is available
         if (!isDatabaseAvailable()) {
             return false;
@@ -224,7 +227,7 @@ function migrateJsonToDatabase() {
         }
         
         // Load existing JSON tasks
-        $jsonTasks = loadTasks(); // From original functions.php
+        $jsonTasks = loadTasks();
         
         if (empty($jsonTasks)) {
             return true; // No tasks to migrate

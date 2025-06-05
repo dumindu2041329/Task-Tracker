@@ -3,13 +3,16 @@
  * Database Configuration
  */
 
+// Load environment variables
+require_once __DIR__ . '/env.php';
+
 // MySQL Database Configuration
 $config = [
-    'host' => $_ENV['DB_HOST'] ?? 'localhost',
+    'host' => $_ENV['DB_HOST'] ?? 'sql12.freesqldatabase.com',
     'port' => $_ENV['DB_PORT'] ?? 3306,
-    'database' => $_ENV['DB_NAME'] ?? 'task_tracker',
-    'username' => $_ENV['DB_USER'] ?? 'root',
-    'password' => $_ENV['DB_PASSWORD'] ?? '',
+    'database' => $_ENV['DB_NAME'] ?? 'sql12783262',
+    'username' => $_ENV['DB_USER'] ?? 'sql12783262',
+    'password' => $_ENV['DB_PASSWORD'] ?? 'xpVneSYgDT',
     'charset' => 'utf8mb4',
     'options' => [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -24,21 +27,25 @@ $config = [
  * @throws Exception If connection fails
  */
 function getDbConnection() {
-    global $config;
-    
     static $pdo = null;
     
     if ($pdo === null) {
         try {
             $dsn = sprintf(
                 'mysql:host=%s;port=%d;dbname=%s;charset=%s',
-                $config['host'],
-                $config['port'],
-                $config['database'],
-                $config['charset']
+                $_ENV['DB_HOST'],
+                $_ENV['DB_PORT'],
+                $_ENV['DB_NAME'],
+                'utf8mb4'
             );
             
-            $pdo = new PDO($dsn, $config['username'], $config['password'], $config['options']);
+            $options = [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ];
+            
+            $pdo = new PDO($dsn, $_ENV['DB_USER'], $_ENV['DB_PASSWORD'], $options);
         } catch (PDOException $e) {
             error_log('Database connection failed: ' . $e->getMessage());
             throw new Exception('Database connection failed');
@@ -65,7 +72,7 @@ function initializeDatabase() {
                 due_date DATE NULL,
                 completed BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NULL DEFAULT NULL,
                 INDEX idx_completed (completed),
                 INDEX idx_due_date (due_date),
                 INDEX idx_created_at (created_at)

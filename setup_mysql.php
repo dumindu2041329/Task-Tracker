@@ -25,10 +25,10 @@ try {
     
     // Try to connect without specifying database first
     $config = [
-        'host' => $_ENV['DB_HOST'] ?? 'localhost',
+        'host' => $_ENV['DB_HOST'] ?? 'sql12.freesqldatabase.com',
         'port' => $_ENV['DB_PORT'] ?? 3306,
-        'username' => $_ENV['DB_USER'] ?? 'root',
-        'password' => $_ENV['DB_PASSWORD'] ?? '',
+        'username' => $_ENV['DB_USER'] ?? 'sql12783262',
+        'password' => $_ENV['DB_PASSWORD'] ?? 'xpVneSYgDT',
         'charset' => 'utf8mb4',
         'options' => [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -36,24 +36,9 @@ try {
         ]
     ];
     
-    $dsn = sprintf(
-        'mysql:host=%s;port=%d;charset=%s',
-        $config['host'],
-        $config['port'],
-        $config['charset']
-    );
-    
-    $pdo = new PDO($dsn, $config['username'], $config['password'], $config['options']);
-    echo "✅ Connected to MySQL server.\n";
-    
-    // Create database if it doesn't exist
-    $dbName = $_ENV['DB_NAME'] ?? 'task_tracker';
-    $pdo->exec("CREATE DATABASE IF NOT EXISTS `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-    echo "✅ Database '$dbName' created or already exists.\n";
-    
-    // Now connect to the specific database
+    // Connect directly to your hosted database
     $pdo = getDbConnection();
-    echo "✅ Connected to database '$dbName'.\n";
+    echo "✅ Connected to external MySQL database.\n";
     
     // Initialize tables
     if (initializeDatabase()) {
